@@ -5,19 +5,26 @@ from torch.nn import functional as F
 
 
 class EncoderCNN(nn.Module):
-    def __init__(self, embed_size):
+    def __init__(self, embed_size, architecture='resnet50'):
         """Load the pretrained ResNet-50 and replace top fc layer."""
         super(EncoderCNN, self).__init__()
-        resnet = models.resnet50(pretrained=True)
-        modules = list(resnet.children())[:-1] 
-        self.resnet = nn.Sequential(*modules)
-        self.embed = nn.Linear(resnet.fc.in_features, embed_size)
+        if architecture == 'resnet50':
+            model = models.resnet50(pretrained=True)
+            in_features = model.fc.in_features
+            modules = list(model.children())[:-1] 
+            self.model = nn.Sequential(*modules)
+        elif architecture == 'densenet161':
+            model = models.densenet161(pretrained=True)
+            in_features = model.classifier.in_features
+            modules = list(model.children())[:-1] 
+            self.model = nn.Sequential(*modules, nn.AvgPool2d(kernel_size=7, stride=1, padding=0))
+        self.embed = nn.Linear(in_features, embed_size)
         self.bn = nn.BatchNorm1d(embed_size, momentum=0.01)
 
     def forward(self, images):
         """Extract feature vectors from input images."""
         with torch.no_grad():
-            features = self.resnet(images)
+            features = self.model(images)
         features = features.view(features.size(0), -1)
         features = self.embed(features)
         features = self.bn(features)
